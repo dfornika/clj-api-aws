@@ -3,6 +3,7 @@
    [ring.adapter.jetty :as jetty]
    [reitit.ring :as reitit-ring]
    [reitit.ring.middleware.muuntaja :as muuntaja]
+   [reitit.ring.middleware.exception :as exception]
    [muuntaja.core :as m]
    [environ.core :refer [env]]
    [clojure.tools.logging :as log]
@@ -30,6 +31,10 @@
     {:status 200
      :body {:greeting (str "Hello, " name "!")}}))
 
+(defn not-found-default-handler [_request]
+  {:status 404
+   :body {:message "Not found"}})
+
 (def routes
   [["/" {:get root-handler}]
    ["/health" {:get health-check-handler}]
@@ -38,12 +43,18 @@
 (defonce route-data (atom {:muuntaja m/instance
                            :middleware [muuntaja/format-negotiate-middleware
                                         muuntaja/format-response-middleware
+                                        exception/exception-middleware
                                         muuntaja/format-request-middleware]}))
 
-(def app-routes
-  (reitit-ring/router routes {:data @route-data}))
+(def default-handlers
+  {:not-found not-found-default-handler})
 
-(def app (reitit-ring/ring-handler app-routes))
+(def router
+  (reitit-ring/router routes {:data @route-data
+                              :default-handlers default-handlers}))
+
+(def app
+  (reitit-ring/ring-handler router))
 
 
 (defn start-server!
