@@ -13,46 +13,10 @@ export class CljApiStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    /* const helloLambda = new lambda.Function(this, 'HelloLambda', {
-      runtime: lambda.Runtime.NODEJS_20_X, // Or any simple runtime
-      handler: 'index.handler',
-      code: lambda.Code.fromInline(`
-        exports.handler = async function(event) {
-          console.log("request:", JSON.stringify(event, undefined, 2));
-          return {
-            statusCode: 200,
-            headers: { "Content-Type": "text/plain" },
-            body: "Hello from temporary inline Lambda!"
-          };
-        };
-      `),
-      timeout: cdk.Duration.seconds(10),
-      logRetention: logs.RetentionDays.ONE_DAY, // Keep it short for test
-    }); */
-
     // Lambda Function
-    /* const apiLambda = new lambda.Function(this, 'apiLambda', {
-      code: lambda.Code.fromAsset(path.join(__dirname, '../../minimal-docker-test')),
-      handler: lambda.Handler.FROM_IMAGE,
-      runtime: lambda.Runtime.FROM_IMAGE,
-      architecture: lambda.Architecture.X86_64, // Or ARM_64, match your Dockerfile
-      memorySize: 512, // Adjust as needed (MB). JVM needs a bit more.
-      timeout: Duration.seconds(30), // API Gateway has a 30s timeout.
-      environment: {
-        // PORT: "8080", // Already set in Dockerfile, but can override
-        // Add any other environment variables your app needs
-        // DATABASE_URL: "your_db_connection_string_from_secrets_manager_or_ssm"
-      },
-      logRetention: logs.RetentionDays.ONE_WEEK, // Adjust as needed
-    }); */
-
     const apiLambda = new lambda.DockerImageFunction(this, 'apiLambda', {
       // DockerImageFunction specifically requires DockerImageCode
-      code: lambda.DockerImageCode.fromImageAsset(path.join(__dirname, '../../minimal-docker-test')),
-      
-      // Properties like handler and runtime are automatically set to FROM_IMAGE
-      // by DockerImageFunction, so you don't specify them.
-
+      code: lambda.DockerImageCode.fromImageAsset(path.join(__dirname, '../../clj-api')),
       architecture: lambda.Architecture.X86_64,
       memorySize: 512, // Or more for JVM
       timeout: Duration.seconds(30),
@@ -79,7 +43,7 @@ export class CljApiStack extends cdk.Stack {
       },
     });
 
-    // 4. Integrate Lambda with API Gateway
+    // Integrate Lambda with API Gateway
     const lambdaIntegration = new HttpLambdaIntegration('lambdaIntegration', apiLambda);
 
     httpApi.addRoutes({
