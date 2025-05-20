@@ -11,8 +11,17 @@
 
 (defonce server (atom nil))
 
+(defn root-handler [request]
+  (let [response-body (-> request
+                          (dissoc :body)
+                          (dissoc :muuntaja/request)
+                          (dissoc :muuntaja/response)
+                          (dissoc :reitit.core/router)
+                          (dissoc :reitit.core/match))]
+      {:status 200
+       :body response-body}))
+
 (defn health-check-handler [_request]
-  ;; Now we can return a Clojure map directly
   {:status 200
    :body {:status "ok" :message "Hello from Clojure!"}})
 
@@ -22,7 +31,8 @@
      :body {:greeting (str "Hello, " name "!")}}))
 
 (def routes
-  [["/health" {:get health-check-handler}]
+  [["/" {:get root-handler}]
+   ["/health" {:get health-check-handler}]
    ["/greet" {:post {:handler greet-handler}}]])
 
 (defonce route-data (atom {:muuntaja m/instance

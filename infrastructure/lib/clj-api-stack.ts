@@ -18,7 +18,7 @@ export class CljApiStack extends cdk.Stack {
       // DockerImageFunction specifically requires DockerImageCode
       code: lambda.DockerImageCode.fromImageAsset(path.join(__dirname, '../../clj-api')),
       architecture: lambda.Architecture.X86_64,
-      memorySize: 512, // Or more for JVM
+      memorySize: 512,
       timeout: Duration.seconds(30),
       environment: {
         // PORT: "8080", // Lambda Web Adapter typically listens on 8080
