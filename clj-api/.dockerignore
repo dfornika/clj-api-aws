@@ -1,0 +1,19 @@
+# Clojure/Java build artifacts
+target/classes
+
+# IDE and OS files
+.idea/
+*.iml
+*.ipr
+*.iws
+.DS_Store
+Thumbs.db
+
+# Git files
+.git/
+.gitignore
+
+# Local env files
+.env
+*.local
+
