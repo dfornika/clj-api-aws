@@ -9,8 +9,11 @@
 (defn add-middleware
   ""
   [m name]
-  (swap! core/route-data update :middleware conj (reitit-middleware/map->Middleware {:name name
-                                                                                     :wrap m})))
+  (swap! core/route-data update :middleware
+         (fn [ms]
+           (if (some #(= name (:name %)) ms)
+             ms ; already present, do nothing
+             (conj ms (reitit-middleware/map->Middleware {:name name :wrap m}))))))
 
 (defn remove-middleware
   ""

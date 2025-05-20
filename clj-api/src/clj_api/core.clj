@@ -6,6 +6,7 @@
    [reitit.ring.middleware.exception :as exception]
    [muuntaja.core :as m]
    [muuntaja.middleware :refer [wrap-format-response]]
+   [reitit.openapi :as openapi]
    [environ.core :refer [env]]
    [clojure.tools.logging :as log]
    [clj-api.middleware :as middleware])
@@ -13,8 +14,16 @@
 
 (defonce server (atom nil))
 
-(defn root-handler [request]
+(defn root-handler
+  ""
+  [request]
+  {:status 200
+   :headers {}
+   :body ""})
+
+(defn echo-handler
   "Just echo the request map, excluding some difficult-to-serialize values"
+   [request]
   (let [response-body (-> request
                           (dissoc :body)
                           (dissoc :muuntaja/request)
@@ -24,11 +33,15 @@
       {:status 200
        :body response-body}))
 
-(defn health-check-handler [_request]
+(defn health-check-handler
+  ""
+  [_request]
   {:status 200
    :body {:status "ok" :message "Hello from Clojure!"}})
 
-(defn greet-handler [request]
+(defn greet-handler
+  ""
+  [request]
   (let [name (get-in request [:body-params :name] "World")]
     {:status 200
      :body {:greeting (str "Hello, " name "!")}}))
@@ -41,8 +54,15 @@
        :body {:message "Not found."}})))
 
 (def routes
-  [["/" {:get root-handler}]
-   ["/health" {:get health-check-handler}]
+  [["/" {:get {:handler root-handler}}]
+   ["/openapi.json"
+        {:get {:no-doc true
+               :openapi {:info {:title "clj-api"
+                                :description "openapi3 docs with [malli](https://github.com/metosin/malli) and reitit-ring"
+                                :version "0.1.0"}}
+               :handler (openapi/create-openapi-handler)}}]
+   ["/echo" {:get {:handler echo-handler}}]
+   ["/health" {:get {:handler health-check-handler}}]
    ["/greet" {:post {:handler greet-handler}}]])
 
 (defonce route-data (atom {:muuntaja m/instance
