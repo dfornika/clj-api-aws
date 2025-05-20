@@ -5,6 +5,7 @@
    [reitit.ring.middleware.muuntaja :as muuntaja]
    [reitit.ring.middleware.exception :as exception]
    [muuntaja.core :as m]
+   [muuntaja.middleware :refer [wrap-format-response]]
    [environ.core :refer [env]]
    [clojure.tools.logging :as log]
    [clj-api.middleware :as middleware])
@@ -13,6 +14,7 @@
 (defonce server (atom nil))
 
 (defn root-handler [request]
+  "Just echo the request map, excluding some difficult-to-serialize values"
   (let [response-body (-> request
                           (dissoc :body)
                           (dissoc :muuntaja/request)
@@ -31,9 +33,12 @@
     {:status 200
      :body {:greeting (str "Hello, " name "!")}}))
 
-(defn not-found-default-handler [_request]
-  {:status 404
-   :body {:message "Not found"}})
+
+(def not-found-default-handler
+  (wrap-format-response
+    (fn [_req]
+      {:status 404
+       :body {:message "Not found."}})))
 
 (def routes
   [["/" {:get root-handler}]
@@ -46,15 +51,19 @@
                                         exception/exception-middleware
                                         muuntaja/format-request-middleware]}))
 
-(def default-handlers
-  {:not-found not-found-default-handler})
 
 (def router
-  (reitit-ring/router routes {:data @route-data
-                              :default-handlers default-handlers}))
+  (reitit-ring/router routes {:data @route-data}))
 
 (def app
-  (reitit-ring/ring-handler router))
+  (reitit-ring/ring-handler
+   router
+   (reitit-ring/create-default-handler
+    {:not-found not-found-default-handler})
+   {:middleware [muuntaja/format-negotiate-middleware
+                 muuntaja/format-response-middleware
+                 muuntaja/format-request-middleware
+                 exception/exception-middleware]}))
 
 
 (defn start-server!

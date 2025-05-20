@@ -15,7 +15,8 @@
 (defn remove-middleware
   ""
   [name]
-  (swap! core/route-data update :middleware (fn [ms] (filter #(not= name (:name %)) ms))))
+  (swap! core/route-data update :middleware
+         (fn [ms] (vec (filter #(not= name (:name %)) ms)))))
 
 (comment
   (add-middleware dev-middleware/tap-middleware :dev-middleware/tap-middleware)
