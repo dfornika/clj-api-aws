@@ -19,7 +19,8 @@
 
  :aliases
  {:dev {:extra-paths ["dev"]
-        :extra-deps {djblue/portal {:mvn/version "0.59.1"}}}
+        :extra-deps {io.github.tonsky/clj-reload {:mvn/version "0.9.7"}
+                     djblue/portal {:mvn/version "0.59.1"}}}
   :build {:extra-deps {io.github.clojure/tools.build {:git/tag "v0.10.9" :git/sha "e405aac"}}
           :ns-default build}
   :run {:main-opts ["-m" "clj-api.core"]}}}

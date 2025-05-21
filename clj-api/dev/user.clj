@@ -1,10 +1,17 @@
 (ns user
-  (:require [clj-api.core :as core]
+  (:require [clj-reload.core :as reload]
             [portal.api :as p]
+            [reitit.middleware :as reitit-middleware]
             [clj-api.middleware :as app-middleware]
             [dev-middleware]
-            [reitit.middleware :as reitit-middleware]))
+            [clj-api.core :as core]))
 
+(reload/init
+  {:dirs ["src" "dev"]})
+
+(comment
+  (reload/reload)
+  )
 
 (defn add-middleware
   ""
