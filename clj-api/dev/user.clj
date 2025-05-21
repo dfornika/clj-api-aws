@@ -11,9 +11,7 @@
   [m name]
   (swap! core/route-data update :middleware
          (fn [ms]
-           (if (some #(= name (:name %)) ms)
-             ms ; already present, do nothing
-             (conj ms (reitit-middleware/map->Middleware {:name name :wrap m}))))))
+           (conj ms (reitit-middleware/map->Middleware {:name name :wrap m})))))
 
 (defn remove-middleware
   ""
@@ -21,14 +19,23 @@
   (swap! core/route-data update :middleware
          (fn [ms] (vec (filter #(not= name (:name %)) ms)))))
 
-(comment
-  (add-middleware dev-middleware/tap-middleware :dev-middleware/tap-middleware)
-  (remove-middleware :dev-middleware/tap-middleware)
+(defn reset-default-middleware
+  ""
+  []
+  (swap! core/route-data assoc :middleware core/matched-route-middleware-stack))
 
-  (add-middleware dev-middleware/pprint-middleware :dev-middleware/pprint-middleware)
-  (remove-middleware :dev-middleware/pprint-middleware)
+
+
+(comment
+
+  (add-middleware dev-middleware/tap-request :dev-middleware/tap-request)
+  (remove-middleware :dev-middleware/tap-request)
   
+  (add-middleware dev-middleware/tap-response :dev-middleware/tap-response)
+  (remove-middleware :dev-middleware/tap-response)
+
   (tap> (:middleware @core/route-data))
+  (reset-default-middleware)
   )
 
 

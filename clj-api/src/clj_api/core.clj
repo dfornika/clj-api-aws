@@ -12,32 +12,37 @@
    [clj-api.middleware :as middleware])
   (:gen-class))
 
+
 (defonce server (atom nil))
 
+
 (defn root-handler
-  ""
+  "Send an empty response"
   [request]
   {:status 200
    :headers {}
    :body ""})
 
+
 (defn echo-handler
   "Just echo the request map, excluding some difficult-to-serialize values"
    [request]
   (let [response-body (-> request
-                          (dissoc :body)
-                          (dissoc :muuntaja/request)
-                          (dissoc :muuntaja/response)
+                          #_(dissoc :body)
+                          #_(dissoc :muuntaja/request)
+                          #_(dissoc :muuntaja/response)
                           (dissoc :reitit.core/router)
                           (dissoc :reitit.core/match))]
       {:status 200
        :body response-body}))
+
 
 (defn health-check-handler
   ""
   [_request]
   {:status 200
    :body {:status "ok" :message "Hello from Clojure!"}})
+
 
 (defn greet-handler
   ""
@@ -46,12 +51,6 @@
     {:status 200
      :body {:greeting (str "Hello, " name "!")}}))
 
-
-(def not-found-default-handler
-  (wrap-format-response
-    (fn [_req]
-      {:status 404
-       :body {:message "Not found."}})))
 
 (def routes
   [["/" {:get {:handler root-handler}}]
@@ -65,25 +64,37 @@
    ["/health" {:get {:handler health-check-handler}}]
    ["/greet" {:post {:handler greet-handler}}]])
 
+
+(def matched-route-middleware-stack
+  [muuntaja/format-negotiate-middleware
+   muuntaja/format-response-middleware
+   exception/exception-middleware
+   muuntaja/format-request-middleware])
+
+
 (defonce route-data (atom {:muuntaja m/instance
-                           :middleware [muuntaja/format-negotiate-middleware
-                                        muuntaja/format-response-middleware
-                                        exception/exception-middleware
-                                        muuntaja/format-request-middleware]}))
+                           :middleware matched-route-middleware-stack}))
 
 
 (def router
   (reitit-ring/router routes {:data @route-data}))
 
+
+(def default-middleware-stack
+  [muuntaja/format-negotiate-middleware
+   muuntaja/format-response-middleware
+   muuntaja/format-request-middleware
+   exception/exception-middleware])
+
+
 (def app
   (reitit-ring/ring-handler
    router
    (reitit-ring/create-default-handler
-    {:not-found not-found-default-handler})
-   {:middleware [muuntaja/format-negotiate-middleware
-                 muuntaja/format-response-middleware
-                 muuntaja/format-request-middleware
-                 exception/exception-middleware]}))
+    {:not-found (constantly {:status 404 :body "" :headers {}})
+     :method-not-allowed (constantly {:status 405 :body "" :headers {}})
+     :not-acceptable (constantly {:status 406 :body "" :headers {}})})
+   {:middleware default-middleware-stack}))
 
 
 (defn start-server!
@@ -107,6 +118,7 @@
   []
   (stop-server!)
   (start-server!))
+
 
 (defn -main
   "" 
