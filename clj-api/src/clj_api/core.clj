@@ -1,5 +1,8 @@
 (ns clj-api.core
   (:require
+   [clojure.string :as str]
+   [clojure.tools.cli :refer [parse-opts]]
+   [aero.core :as aero]
    [ring.adapter.jetty :as jetty]
    [reitit.ring :as reitit-ring]
    [reitit.ring.middleware.muuntaja :as muuntaja]
@@ -9,16 +12,39 @@
    [reitit.openapi :as openapi]
    [environ.core :refer [env]]
    [clojure.tools.logging :as log]
+   [clj-api.cli :as cli]
    [clj-api.middleware :as middleware])
+  (:import
+    [java.util Date])
   (:gen-class))
 
+;; Can we compile with GraalVM?
+(set! *warn-on-reflection* true)
 
+;; log uncaught exceptions in threads
+;; lifted from kit template
+(Thread/setDefaultUncaughtExceptionHandler
+ (fn [^Thread thread ex]
+   (log/error {:what :uncaught-exception
+               :exception ex
+               :where (str "Uncaught exception on" (.getName thread))})))
+
+
+;; Minimal component-like hot-reloading of
+;; web server. Consider replacing with
+;; component, integrant or other
+(defonce config (atom {}))
 (defonce server (atom nil))
 
+(defn load-config!
+  ""
+  [config-path]
+  (let [new-config (aero/read-config config-path)]
+    (reset! config new-config))) 
 
 (defn root-handler
   "Send an empty response"
-  [request]
+  [_request]
   {:status 200
    :headers {}
    :body ""})
@@ -38,14 +64,19 @@
 
 
 (defn health-check-handler
-  ""
+  "Send a summary of system status."
   [_request]
-  {:status 200
-   :body {:status "ok" :message "Hello from Clojure!"}})
+  (let [current-time (Date. (System/currentTimeMillis))
+        system-start-time (Date. (.getStartTime (java.lang.management.ManagementFactory/getRuntimeMXBean)))]
+    {:status 200
+     :body {:time (str current-time)
+            :up-since (str system-start-time)
+            :status "up"
+            :message "Hello from Clojure!"}}))
 
 
 (defn greet-handler
-  ""
+  "Respond with a greeting, taking the name from a json-formatted request body."
   [request]
   (let [name (get-in request [:body-params :name] "World")]
     {:status 200
@@ -99,16 +130,17 @@
 
 (defn start-server!
   ""
-  []
-  (let [port (Integer/parseInt (env :port "8080"))]
-    (log/info (str "Starting server on port " port))
-    (reset! server (jetty/run-jetty #'app {:port port :join? false}))))
+  ([]
+   (start-server! 8080))
+  ([port]
+   (log/info (str "Starting server on port " port))
+   (reset! server (jetty/run-jetty #'app {:port port :join? false}))))
 
 
 (defn stop-server!
   "" 
   []
-  (when-some [s @server] ;; check if there is an object in the atom
+  (when-some [^org.eclipse.jetty.server.Server s @server] ;; check if there is an object in the atom
     (.stop s)            ;; call the .stop method
     (reset! server nil)));; overwrite the atom with nil
 
@@ -122,5 +154,21 @@
 
 (defn -main
   "" 
-  [& _args]
-  (start-server!))
+  [& args]
+  (let [opts (parse-opts args cli/options)]
+    
+    (when (not (empty? (:errors opts)))
+      (cli/exit 1 (str/join \newline (:errors opts))))
+
+    (when (get-in opts [:options :help])
+      (let [options-summary (:summary opts)]
+        (cli/exit 0 (cli/usage options-summary))))
+
+    (when-let [config-path (get-in opts [:options :config])]
+      (load-config! config-path))
+
+    (if-let [port (:port @config)]
+      (start-server! (:port @config))
+      (start-server!))
+    
+    (.addShutdownHook (Runtime/getRuntime) (Thread. (fn [] (stop-server!) (shutdown-agents))))))
