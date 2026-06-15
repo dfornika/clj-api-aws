@@ -85,16 +85,16 @@
 
 
 (def routes
-  [["/" {:get {:handler root-handler}}]
+  [["/" {:get {:handler #'root-handler}}]
    ["/openapi.json"
         {:get {:no-doc true
                :openapi {:info {:title "clj-api"
                                 :description "openapi3 docs with [malli](https://github.com/metosin/malli) and reitit-ring"
                                 :version "0.1.0"}}
                :handler (openapi/create-openapi-handler)}}]
-   ["/echo" {:get {:handler echo-handler}}]
-   ["/health" {:get {:handler health-check-handler}}]
-   ["/greet" {:post {:handler greet-handler}}]])
+   ["/echo" {:get {:handler #'echo-handler}}]
+   ["/health" {:get {:handler #'health-check-handler}}]
+   ["/greet" {:post {:handler #'greet-handler}}]])
 
 
 (def matched-route-middleware-stack
