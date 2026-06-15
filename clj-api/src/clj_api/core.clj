@@ -12,7 +12,9 @@
    [reitit.coercion.malli]
    [muuntaja.core :as m]
    [reitit.openapi :as openapi]
-   [clojure.tools.logging :as log]
+   [taoensso.telemere :as tel]
+   [taoensso.telemere.tools-logging :as tel-tl]
+   [jsonista.core :as json]
    [clj-api.cli :as cli]
    [clj-api.middleware :as middleware])
   (:import
@@ -26,9 +28,9 @@
 ;; lifted from kit template
 (Thread/setDefaultUncaughtExceptionHandler
  (fn [^Thread thread ex]
-   (log/error {:what :uncaught-exception
-               :exception ex
-               :where (str "Uncaught exception on" (.getName thread))})))
+   (tel/log! :error {:what :uncaught-exception
+                     :exception ex
+                     :where (str "Uncaught exception on " (.getName thread))})))
 
 
 ;; Minimal component-like hot-reloading of
@@ -36,6 +38,23 @@
 ;; component, integrant or other
 (defonce config (atom {}))
 (defonce server (atom nil))
+
+(defn setup-logging! []
+  (tel-tl/tools-logging->telemere!)
+  (tel/remove-handler! :default/console)
+  (if (= (System/getenv "APP_ENV") "dev")
+    (tel/add-handler! :console (tel/handler:console {}))
+    (tel/add-handler! :console
+      (tel/handler:console
+        {:output-fn (fn [{:keys [level ctx inst ns] :as signal}]
+                      (json/write-value-as-string
+                        {:level (name level)
+                         :ts    (str inst)
+                         :ns    ns
+                         :msg   (force (:msg_ signal))
+                         :ctx   ctx}))}))))
+
+(setup-logging!)
 
 (defn load-config!
   ([]
@@ -129,7 +148,9 @@
 
 
 (def default-middleware-stack
-  [muuntaja/format-negotiate-middleware
+  [middleware/wrap-correlation-id
+   middleware/wrap-request-logging
+   muuntaja/format-negotiate-middleware
    muuntaja/format-response-middleware
    muuntaja/format-request-middleware
    exception/exception-middleware])
@@ -151,12 +172,12 @@
   ([port]
    (start-server! port "0.0.0.0"))
   ([port host]
-   (log/info (str "Starting server on " host ":" port))
+   (tel/log! :info (str "Starting server on " host ":" port))
    (reset! server (jetty/run-jetty #'app {:port port :host host :join? false}))))
 
 
 (defn stop-server!
-  "" 
+  ""
   []
   (when-some [^org.eclipse.jetty.server.Server s @server] ;; check if there is an object in the atom
     (.stop s)            ;; call the .stop method
@@ -171,10 +192,10 @@
 
 
 (defn -main
-  "" 
+  ""
   [& args]
   (let [opts (parse-opts args cli/options)]
-    
+
     (when (not (empty? (:errors opts)))
       (cli/exit 1 (str/join \newline (:errors opts))))
 
@@ -189,5 +210,5 @@
     (let [port (get-in @config [:server :port] 8080)
           host (get-in @config [:server :host] "0.0.0.0")]
       (start-server! port host))
-    
+
     (.addShutdownHook (Runtime/getRuntime) (Thread. (fn [] (stop-server!) (shutdown-agents))))))
