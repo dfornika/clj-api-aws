@@ -8,6 +8,8 @@
    [reitit.ring :as reitit-ring]
    [reitit.ring.middleware.muuntaja :as muuntaja]
    [reitit.ring.middleware.exception :as exception]
+   [reitit.ring.coercion :as ring-coercion]
+   [reitit.coercion.malli]
    [muuntaja.core :as m]
    [reitit.openapi :as openapi]
    [clojure.tools.logging :as log]
@@ -85,26 +87,40 @@
 
 
 (def routes
-  [["/" {:get {:handler #'root-handler}}]
+  [["/" {:get {:summary "Root"
+               :handler #'root-handler}}]
    ["/openapi.json"
         {:get {:no-doc true
                :openapi {:info {:title "clj-api"
-                                :description "openapi3 docs with [malli](https://github.com/metosin/malli) and reitit-ring"
+                                :description "openapi3 docs with malli and reitit-ring"
                                 :version "0.1.0"}}
                :handler (openapi/create-openapi-handler)}}]
-   ["/echo" {:get {:handler #'echo-handler}}]
-   ["/health" {:get {:handler #'health-check-handler}}]
-   ["/greet" {:post {:handler #'greet-handler}}]])
+   ["/echo" {:get {:summary "Echo request map"
+                   :handler #'echo-handler}}]
+   ["/health" {:get {:summary "Health check"
+                     :responses {200 {:body [:map
+                                             [:time :string]
+                                             [:up-since :string]
+                                             [:status :string]
+                                             [:message :string]]}}
+                     :handler #'health-check-handler}}]
+   ["/greet" {:post {:summary "Greet by name"
+                     :parameters {:body [:map [:name {:optional true} :string]]}
+                     :responses {200 {:body [:map [:greeting :string]]}}
+                     :handler #'greet-handler}}]])
 
 
 (def matched-route-middleware-stack
   [muuntaja/format-negotiate-middleware
    muuntaja/format-response-middleware
    exception/exception-middleware
-   muuntaja/format-request-middleware])
+   muuntaja/format-request-middleware
+   ring-coercion/coerce-request-middleware
+   ring-coercion/coerce-response-middleware])
 
 
 (defonce route-data (atom {:muuntaja m/instance
+                           :coercion reitit.coercion.malli/coercion
                            :middleware matched-route-middleware-stack}))
 
 
