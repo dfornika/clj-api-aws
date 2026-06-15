@@ -1,0 +1,47 @@
+name: Tests
+
+on:
+  push:
+    paths:
+      - 'clj-api/**'
+      - '.github/workflows/test.yml'
+  pull_request:
+    paths:
+      - 'clj-api/**'
+      - '.github/workflows/test.yml'
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: clj-api
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Clojure CLI
+        uses: DeLaGuardo/setup-clojure@12
+        with:
+          cli: latest
+
+      - name: Cache Clojure deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.m2/repository
+            ~/.gitlibs
+            clj-api/.cpcache
+          key: ${{ runner.os }}-clojure-${{ hashFiles('clj-api/deps.edn') }}
+          restore-keys: |
+            ${{ runner.os }}-clojure-
+
+      - name: Run tests
+        run: clojure -X:test
