@@ -1,5 +1,6 @@
 (ns clj-api.core
   (:require
+   [clojure.java.io :as io]
    [clojure.string :as str]
    [clojure.tools.cli :refer [parse-opts]]
    [aero.core :as aero]
@@ -8,9 +9,7 @@
    [reitit.ring.middleware.muuntaja :as muuntaja]
    [reitit.ring.middleware.exception :as exception]
    [muuntaja.core :as m]
-   [muuntaja.middleware :refer [wrap-format-response]]
    [reitit.openapi :as openapi]
-   [environ.core :refer [env]]
    [clojure.tools.logging :as log]
    [clj-api.cli :as cli]
    [clj-api.middleware :as middleware])
@@ -37,10 +36,12 @@
 (defonce server (atom nil))
 
 (defn load-config!
-  ""
-  [config-path]
-  (let [new-config (aero/read-config config-path)]
-    (reset! config new-config))) 
+  ([]
+   (load-config! (io/resource "config.edn")))
+  ([config-source]
+   (let [profile (keyword (or (System/getenv "APP_ENV") "default"))
+         new-config (aero/read-config config-source {:profile profile})]
+     (reset! config new-config))))
 
 (defn root-handler
   "Send an empty response"
@@ -129,12 +130,13 @@
 
 
 (defn start-server!
-  ""
   ([]
-   (start-server! 8080))
+   (start-server! 8080 "0.0.0.0"))
   ([port]
-   (log/info (str "Starting server on port " port))
-   (reset! server (jetty/run-jetty #'app {:port port :join? false}))))
+   (start-server! port "0.0.0.0"))
+  ([port host]
+   (log/info (str "Starting server on " host ":" port))
+   (reset! server (jetty/run-jetty #'app {:port port :host host :join? false}))))
 
 
 (defn stop-server!
@@ -164,11 +166,12 @@
       (let [options-summary (:summary opts)]
         (cli/exit 0 (cli/usage options-summary))))
 
-    (when-let [config-path (get-in opts [:options :config])]
-      (load-config! config-path))
+    (if-let [config-path (get-in opts [:options :config])]
+      (load-config! config-path)
+      (load-config!))
 
-    (if-let [port (:port @config)]
-      (start-server! (:port @config))
-      (start-server!))
+    (let [port (get-in @config [:server :port] 8080)
+          host (get-in @config [:server :host] "0.0.0.0")]
+      (start-server! port host))
     
     (.addShutdownHook (Runtime/getRuntime) (Thread. (fn [] (stop-server!) (shutdown-agents))))))
