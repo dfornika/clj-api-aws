@@ -90,7 +90,9 @@
      :body {:time     (str now)
             :up-since (str start-time)
             :status   "up"
-            :message  "Hello from Clojure!"}}))
+            :message  "Hello from Clojure!"
+            :db       {:table              @db/table
+                       :client-initialized (some? @db/client)}}}))
 
 (defn greet-handler
   "Respond with a greeting, taking the name from a json-formatted request body."
@@ -147,7 +149,10 @@
                                              [:time :string]
                                              [:up-since :string]
                                              [:status :string]
-                                             [:message :string]]}}
+                                             [:message :string]
+                                             [:db [:map
+                                                   [:table [:maybe :string]]
+                                                   [:client-initialized :boolean]]]]}}
                      :handler #'health-check-handler}}]
    ["/greet" {:post {:summary "Greet by name"
                      :parameters {:body [:map [:name {:optional true} :string]]}
@@ -189,9 +194,13 @@
   (reitit-ring/ring-handler
    router
    (reitit-ring/create-default-handler
-    {:not-found (constantly {:status 404 :body "" :headers {}})
+    {:not-found         (fn [req]
+                          (tel/log! :warn {:what   :not-found
+                                           :method (:request-method req)
+                                           :uri    (:uri req)})
+                          {:status 404 :body "" :headers {}})
      :method-not-allowed (constantly {:status 405 :body "" :headers {}})
-     :not-acceptable (constantly {:status 406 :body "" :headers {}})})
+     :not-acceptable     (constantly {:status 406 :body "" :headers {}})})
    {:middleware default-middleware-stack}))
 
 (defn start-server!
@@ -234,5 +243,7 @@
     (let [port (get-in @config [:server :port] 8080)
           host (get-in @config [:server :host] "0.0.0.0")]
       (start-server! port host))
+
+    (future (db/check-table!))
 
     (.addShutdownHook (Runtime/getRuntime) (Thread. (fn [] (stop-server!) (shutdown-agents))))))

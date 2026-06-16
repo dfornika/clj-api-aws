@@ -3,9 +3,10 @@
             [clj-api.db :as db]))
 
 (defn- check-anomaly! [op res]
-  (when (:cognitect.anomalies/category res)
-    (throw (ex-info (str "DynamoDB " (name op) " failed")
-                    {:op op :anomaly res})))
+  (when-let [category (:cognitect.anomalies/category res)]
+    (let [msg (or (:cognitect.anomalies/message res) (str category))]
+      (throw (ex-info (str "DynamoDB " (name op) " failed: " msg)
+                      {:op op :category (name category) :message msg}))))
   res)
 
 (defn create-item! [item]

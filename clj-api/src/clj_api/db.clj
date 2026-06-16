@@ -1,6 +1,7 @@
 (ns clj-api.db
   (:require [cognitect.aws.client.api :as aws]
-            [clojure.string :as str]))
+            [clojure.string :as str]
+            [taoensso.telemere :as tel]))
 
 (defonce client (atom nil))
 (defonce table  (atom nil))
@@ -11,9 +12,20 @@
      :hostname (.getHost uri)
      :port     (.getPort uri)}))
 
+(defn check-table! []
+  ;; Use Scan (Limit 1) — covered by grantReadWriteData unlike DescribeTable
+  (let [res (aws/invoke @client {:op :Scan :request {:TableName @table :Limit 1}})]
+    (if (:cognitect.anomalies/category res)
+      (tel/log! :warn {:what :db-check-failed
+                       :table @table
+                       :anomaly (select-keys res [:cognitect.anomalies/category
+                                                  :cognitect.anomalies/message])})
+      (tel/log! :info {:what :db-check-ok :table @table}))))
+
 (defn init-db! [{:keys [table-name endpoint region]}]
   (when (str/blank? table-name)
     (throw (IllegalArgumentException. "table-name must not be blank")))
+  (tel/log! :info {:what :db-init :table-name table-name :endpoint endpoint :region region})
   (let [cfg (cond-> {:api :dynamodb}
               region   (assoc :region region)
               endpoint (assoc :endpoint-override (parse-endpoint endpoint)))]

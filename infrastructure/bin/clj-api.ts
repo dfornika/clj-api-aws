@@ -2,6 +2,10 @@
 import * as cdk from 'aws-cdk-lib';
 import { CljApiStack } from '../lib/clj-api-stack';
 
+// Load environment variables from .env file
+import * as dotenv from 'dotenv';
+dotenv.config();
+
 const app = new cdk.App();
 new CljApiStack(app, 'CljApiStack', {
   /* If you don't specify 'env', this stack will be environment-agnostic.

@@ -1,5 +1,10 @@
-# Clojure/Java build artifacts
-target/classes
+# Clojure/Java build artifacts — the builder stage produces its own
+target
+.cpcache
+
+# Dev/test source — not compiled into the uberjar
+dev
+test
 
 # IDE and OS files
 .idea/

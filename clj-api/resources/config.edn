@@ -6,5 +6,5 @@
                                   :default #env DYNAMODB_TABLE_NAME}
             :endpoint   #profile {:dev     "http://localhost:8000"
                                   :default nil}
-            :region     #profile {:dev     "us-east-1"
+            :region     #profile {:dev     "ca-central-1"
                                   :default nil}}}
