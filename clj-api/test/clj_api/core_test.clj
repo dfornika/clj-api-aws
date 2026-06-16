@@ -1,8 +1,10 @@
 (ns clj-api.core-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [ring.mock.request :as mock]
             [jsonista.core :as json]
-            [clj-api.core :refer [app]]))
+            [cognitect.aws.client.api :as aws]
+            [clj-api.core :refer [app]]
+            [clj-api.db :as db]))
 
 (def ^:private json-mapper
   (json/object-mapper {:decode-key-fn keyword}))
@@ -14,6 +16,36 @@
   (app (-> (mock/request :post path)
            (mock/content-type "application/json")
            (mock/body (json/write-value-as-string body)))))
+
+(defn- create-test-table! []
+  (aws/invoke @db/client
+              {:op      :CreateTable
+               :request {:TableName            @db/table
+                         :AttributeDefinitions [{:AttributeName "id" :AttributeType "S"}]
+                         :KeySchema            [{:AttributeName "id" :KeyType "HASH"}]
+                         :BillingMode          "PAY_PER_REQUEST"}}))
+
+(defn- wait-for-table-active! []
+  (loop [n 20]
+    (let [status (-> (aws/invoke @db/client
+                                 {:op      :DescribeTable
+                                  :request {:TableName @db/table}})
+                     (get-in [:Table :TableStatus]))]
+      (cond
+        (= status "ACTIVE") nil
+        (zero? n) (throw (ex-info "Timed out waiting for DynamoDB table to become ACTIVE"
+                                  {:table @db/table}))
+        :else (do (Thread/sleep 250) (recur (dec n)))))))
+
+(defn- with-dynamodb [f]
+  (db/init-db! {:table-name "items-test"
+                :endpoint   "http://localhost:8000"
+                :region     "us-east-1"})
+  (create-test-table!)
+  (wait-for-table-active!)
+  (f))
+
+(use-fixtures :once with-dynamodb)
 
 (deftest root-returns-200
   (let [response (app (mock/request :get "/"))]
@@ -64,3 +96,32 @@
   (let [response (app (-> (mock/request :get "/health")
                           (mock/header "x-request-id" "my-trace-id")))]
     (is (= "my-trace-id" (get-in response [:headers "x-request-id"])))))
+
+(deftest create-item-returns-201
+  (let [response (json-post "/items" {:title "Test item"})
+        body     (parse-body response)]
+    (is (= 201 (:status response)))
+    (is (string? (:id body)))
+    (is (= "Test item" (:title body)))
+    (is (string? (:created-at body)))))
+
+(deftest list-items-returns-200
+  (let [response (app (mock/request :get "/items"))
+        body     (parse-body response)]
+    (is (= 200 (:status response)))
+    (is (vector? (:items body)))))
+
+(deftest get-item-roundtrip
+  (let [created  (parse-body (json-post "/items" {:title "Roundtrip"}))
+        id       (:id created)
+        response (app (mock/request :get (str "/items/" id)))
+        body     (parse-body response)]
+    (is (= 200 (:status response)))
+    (is (= id (:id body)))
+    (is (= "Roundtrip" (:title body)))))
+
+(deftest delete-item-returns-204
+  (let [created  (parse-body (json-post "/items" {:title "To delete"}))
+        id       (:id created)
+        response (app (mock/request :delete (str "/items/" id)))]
+    (is (= 204 (:status response)))))

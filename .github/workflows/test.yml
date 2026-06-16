@@ -18,6 +18,17 @@ jobs:
       run:
         working-directory: clj-api
 
+    services:
+      dynamodb-local:
+        image: amazon/dynamodb-local:latest
+        ports:
+          - 8000:8000
+
+    env:
+      AWS_ACCESS_KEY_ID: dummy
+      AWS_SECRET_ACCESS_KEY: dummy
+      AWS_DEFAULT_REGION: us-east-1
+
     steps:
       - uses: actions/checkout@v4
 
@@ -42,6 +53,9 @@ jobs:
           key: ${{ runner.os }}-clojure-${{ hashFiles('clj-api/deps.edn') }}
           restore-keys: |
             ${{ runner.os }}-clojure-
+
+      - name: Wait for DynamoDB Local
+        run: timeout 30 bash -c 'until curl -s -o /dev/null http://localhost:8000; do sleep 1; done'
 
       - name: Run tests
         run: clojure -X:test

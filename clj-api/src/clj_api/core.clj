@@ -16,9 +16,11 @@
    [taoensso.telemere.tools-logging :as tel-tl]
    [jsonista.core :as json]
    [clj-api.cli :as cli]
+   [clj-api.db :as db]
+   [clj-api.items :as items]
    [clj-api.middleware :as middleware])
   (:import
-    [java.util Date])
+   [java.util Date])
   (:gen-class))
 
 ;; Can we compile with GraalVM?
@@ -32,7 +34,6 @@
                      :exception ex
                      :where (str "Uncaught exception on " (.getName thread))})))
 
-
 ;; Minimal component-like hot-reloading of
 ;; web server. Consider replacing with
 ;; component, integrant or other
@@ -45,14 +46,14 @@
   (if (= (System/getenv "APP_ENV") "dev")
     (tel/add-handler! :console (tel/handler:console {}))
     (tel/add-handler! :console
-      (tel/handler:console
-        {:output-fn (fn [{:keys [level ctx inst ns] :as signal}]
-                      (json/write-value-as-string
-                        {:level (name level)
-                         :ts    (str inst)
-                         :ns    ns
-                         :msg   (force (:msg_ signal))
-                         :ctx   ctx}))}))))
+                      (tel/handler:console
+                       {:output-fn (fn [{:keys [level ctx inst ns] :as signal}]
+                                     (json/write-value-as-string
+                                      {:level (name level)
+                                       :ts    (str inst)
+                                       :ns    ns
+                                       :msg   (force (:msg_ signal))
+                                       :ctx   ctx}))}))))
 
 (setup-logging!)
 
@@ -71,19 +72,17 @@
    :headers {}
    :body ""})
 
-
 (defn echo-handler
   "Just echo the request map, excluding some difficult-to-serialize values"
-   [request]
+  [request]
   (let [response-body (-> request
                           #_(dissoc :body)
                           #_(dissoc :muuntaja/request)
                           #_(dissoc :muuntaja/response)
                           (dissoc :reitit.core/router)
                           (dissoc :reitit.core/match))]
-      {:status 200
-       :body response-body}))
-
+    {:status 200
+     :body response-body}))
 
 (defn health-check-handler
   "Send a summary of system status."
@@ -96,7 +95,6 @@
             :status "up"
             :message "Hello from Clojure!"}}))
 
-
 (defn greet-handler
   "Respond with a greeting, taking the name from a json-formatted request body."
   [request]
@@ -104,16 +102,40 @@
     {:status 200
      :body {:greeting (str "Hello, " name "!")}}))
 
+(defn list-items-handler [_request]
+  {:status 200
+   :body {:items (or (items/list-items) [])}})
+
+(defn create-item-handler [request]
+  (let [{:keys [title content]} (:body-params request)
+        id   (str (java.util.UUID/randomUUID))
+        now  (str (java.time.Instant/now))
+        item (cond-> {:id id :title title :created-at now}
+               content (assoc :content content))]
+    (items/create-item! item)
+    {:status 201 :body item}))
+
+(defn get-item-handler [request]
+  (let [id   (get-in request [:path-params :id])
+        item (items/get-item id)]
+    (if item
+      {:status 200 :body item}
+      {:status 404 :body {:error "not found"}})))
+
+(defn delete-item-handler [request]
+  (let [id (get-in request [:path-params :id])]
+    (items/delete-item! id)
+    {:status 204 :body nil}))
 
 (def routes
   [["/" {:get {:summary "Root"
                :handler #'root-handler}}]
    ["/openapi.json"
-        {:get {:no-doc true
-               :openapi {:info {:title "clj-api"
-                                :description "openapi3 docs with malli and reitit-ring"
-                                :version "0.1.0"}}
-               :handler (openapi/create-openapi-handler)}}]
+    {:get {:no-doc true
+           :openapi {:info {:title "clj-api"
+                            :description "openapi3 docs with malli and reitit-ring"
+                            :version "0.1.0"}}
+           :handler (openapi/create-openapi-handler)}}]
    ["/echo" {:get {:summary "Echo request map"
                    :handler #'echo-handler}}]
    ["/health" {:get {:summary "Health check"
@@ -126,8 +148,22 @@
    ["/greet" {:post {:summary "Greet by name"
                      :parameters {:body [:map [:name {:optional true} :string]]}
                      :responses {200 {:body [:map [:greeting :string]]}}
-                     :handler #'greet-handler}}]])
-
+                     :handler #'greet-handler}}]
+   ["/items" {:get  {:summary "List items"
+                     :responses {200 {:body [:map [:items [:vector [:map
+                                                                    [:id :string]
+                                                                    [:title :string]
+                                                                    [:created-at :string]]]]]}}
+                     :handler #'list-items-handler}
+              :post {:summary "Create item"
+                     :parameters {:body [:map [:title :string] [:content {:optional true} :string]]}
+                     :responses {201 {:body [:map [:id :string] [:title :string] [:created-at :string]]}}
+                     :handler #'create-item-handler}}]
+   ["/items/:id" {:get    {:summary "Get item by id"
+                           :responses {200 {:body [:map [:id :string] [:title :string] [:created-at :string]]}}
+                           :handler #'get-item-handler}
+                  :delete {:summary "Delete item by id"
+                           :handler #'delete-item-handler}}]])
 
 (def matched-route-middleware-stack
   [muuntaja/format-negotiate-middleware
@@ -137,15 +173,12 @@
    ring-coercion/coerce-request-middleware
    ring-coercion/coerce-response-middleware])
 
-
 (defonce route-data (atom {:muuntaja m/instance
                            :coercion reitit.coercion.malli/coercion
                            :middleware matched-route-middleware-stack}))
 
-
 (def router
   (reitit-ring/router routes {:data @route-data}))
-
 
 (def default-middleware-stack
   [middleware/wrap-correlation-id
@@ -154,7 +187,6 @@
    muuntaja/format-response-middleware
    muuntaja/format-request-middleware
    exception/exception-middleware])
-
 
 (def app
   (reitit-ring/ring-handler
@@ -165,7 +197,6 @@
      :not-acceptable (constantly {:status 406 :body "" :headers {}})})
    {:middleware default-middleware-stack}))
 
-
 (defn start-server!
   ([]
    (start-server! 8080 "0.0.0.0"))
@@ -175,21 +206,18 @@
    (tel/log! :info (str "Starting server on " host ":" port))
    (reset! server (jetty/run-jetty #'app {:port port :host host :join? false}))))
 
-
 (defn stop-server!
   ""
   []
-  (when-some [^org.eclipse.jetty.server.Server s @server] ;; check if there is an object in the atom
-    (.stop s)            ;; call the .stop method
-    (reset! server nil)));; overwrite the atom with nil
-
+  (when-some [^org.eclipse.jetty.server.Server s @server]
+    (.stop s)
+    (reset! server nil)))
 
 (defn restart-server!
   ""
   []
   (stop-server!)
   (start-server!))
-
 
 (defn -main
   ""
@@ -206,6 +234,8 @@
     (if-let [config-path (get-in opts [:options :config])]
       (load-config! config-path)
       (load-config!))
+
+    (db/init-db! (:dynamodb @config))
 
     (let [port (get-in @config [:server :port] 8080)
           host (get-in @config [:server :host] "0.0.0.0")]

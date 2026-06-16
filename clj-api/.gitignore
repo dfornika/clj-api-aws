@@ -33,3 +33,5 @@ profiles.clj
 
 /.shadow-cljs/
 node_modules/
+
+dynamodb-local-metadata.json
