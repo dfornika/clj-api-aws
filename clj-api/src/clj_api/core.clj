@@ -2,7 +2,6 @@
   (:require
    [clojure.java.io :as io]
    [clojure.string :as str]
-   [clojure.tools.cli :refer [parse-opts]]
    [aero.core :as aero]
    [ring.adapter.jetty :as jetty]
    [reitit.ring :as reitit-ring]
@@ -20,7 +19,8 @@
    [clj-api.items :as items]
    [clj-api.middleware :as middleware])
   (:import
-   [java.util Date])
+   [java.time Instant]
+   [java.lang.management ManagementFactory])
   (:gen-class))
 
 ;; Can we compile with GraalVM?
@@ -76,9 +76,6 @@
   "Just echo the request map, excluding some difficult-to-serialize values"
   [request]
   (let [response-body (-> request
-                          #_(dissoc :body)
-                          #_(dissoc :muuntaja/request)
-                          #_(dissoc :muuntaja/response)
                           (dissoc :reitit.core/router)
                           (dissoc :reitit.core/match))]
     {:status 200
@@ -87,13 +84,13 @@
 (defn health-check-handler
   "Send a summary of system status."
   [_request]
-  (let [current-time (Date. (System/currentTimeMillis))
-        system-start-time (Date. (.getStartTime (java.lang.management.ManagementFactory/getRuntimeMXBean)))]
+  (let [now        (Instant/now)
+        start-time (Instant/ofEpochMilli (.getStartTime (ManagementFactory/getRuntimeMXBean)))]
     {:status 200
-     :body {:time (str current-time)
-            :up-since (str system-start-time)
-            :status "up"
-            :message "Hello from Clojure!"}}))
+     :body {:time     (str now)
+            :up-since (str start-time)
+            :status   "up"
+            :message  "Hello from Clojure!"}}))
 
 (defn greet-handler
   "Respond with a greeting, taking the name from a json-formatted request body."
@@ -104,12 +101,12 @@
 
 (defn list-items-handler [_request]
   {:status 200
-   :body {:items (or (items/list-items) [])}})
+   :body {:items (items/list-items)}})
 
 (defn create-item-handler [request]
   (let [{:keys [title content]} (:body-params request)
         id   (str (java.util.UUID/randomUUID))
-        now  (str (java.time.Instant/now))
+        now  (str (Instant/now))
         item (cond-> {:id id :title title :created-at now}
                content (assoc :content content))]
     (items/create-item! item)
@@ -126,6 +123,13 @@
   (let [id (get-in request [:path-params :id])]
     (items/delete-item! id)
     {:status 204 :body nil}))
+
+(def item-schema
+  [:map
+   [:id :string]
+   [:title :string]
+   [:created-at :string]
+   [:content {:optional true} :string]])
 
 (def routes
   [["/" {:get {:summary "Root"
@@ -150,18 +154,14 @@
                      :responses {200 {:body [:map [:greeting :string]]}}
                      :handler #'greet-handler}}]
    ["/items" {:get  {:summary "List items"
-                     :responses {200 {:body [:map [:items [:vector [:map
-                                                                    [:id :string]
-                                                                    [:title :string]
-                                                                    [:created-at :string]
-                                                                    [:content {:optional true} :string]]]]]}}
+                     :responses {200 {:body [:map [:items [:vector item-schema]]]}}
                      :handler #'list-items-handler}
               :post {:summary "Create item"
                      :parameters {:body [:map [:title :string] [:content {:optional true} :string]]}
-                     :responses {201 {:body [:map [:id :string] [:title :string] [:created-at :string] [:content {:optional true} :string]]}}
+                     :responses {201 {:body item-schema}}
                      :handler #'create-item-handler}}]
    ["/items/:id" {:get    {:summary "Get item by id"
-                           :responses {200 {:body [:map [:id :string] [:title :string] [:created-at :string] [:content {:optional true} :string]]}}
+                           :responses {200 {:body item-schema}}
                            :handler #'get-item-handler}
                   :delete {:summary "Delete item by id"
                            :handler #'delete-item-handler}}]])
@@ -183,11 +183,7 @@
 
 (def default-middleware-stack
   [middleware/wrap-correlation-id
-   middleware/wrap-request-logging
-   muuntaja/format-negotiate-middleware
-   muuntaja/format-response-middleware
-   muuntaja/format-request-middleware
-   exception/exception-middleware])
+   middleware/wrap-request-logging])
 
 (def app
   (reitit-ring/ring-handler
@@ -208,24 +204,21 @@
    (reset! server (jetty/run-jetty #'app {:port port :host host :join? false}))))
 
 (defn stop-server!
-  ""
   []
   (when-some [^org.eclipse.jetty.server.Server s @server]
     (.stop s)
     (reset! server nil)))
 
 (defn restart-server!
-  ""
   []
   (stop-server!)
   (start-server!))
 
 (defn -main
-  ""
   [& args]
-  (let [opts (parse-opts args cli/options)]
+  (let [opts (cli/parse-args args)]
 
-    (when (not (empty? (:errors opts)))
+    (when (seq (:errors opts))
       (cli/exit 1 (str/join \newline (:errors opts))))
 
     (when (get-in opts [:options :help])

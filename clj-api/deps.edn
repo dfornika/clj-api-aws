@@ -9,13 +9,10 @@
         ring/ring-jetty-adapter {:mvn/version "1.14.1"}
         ;; Routing
         metosin/reitit-ring {:mvn/version "0.8.0"}
-        metosin/reitit-middleware {:mvn/version "0.8.0"}
         metosin/reitit-malli {:mvn/version "0.8.0"}
         fi.metosin/reitit-openapi {:mvn/version "0.8.0"}
         ;; JSON handling
         metosin/muuntaja {:mvn/version "0.6.11"}
-        ;; Configuration
-        environ/environ {:mvn/version "1.2.0"}
         ;; AWS
         com.cognitect.aws/api       {:mvn/version "0.8.824"}
         com.cognitect.aws/endpoints {:mvn/version "871.2.46.6"}
@@ -30,6 +27,7 @@
         :extra-deps {io.github.tonsky/clj-reload {:mvn/version "0.9.7"}
                      djblue/portal {:mvn/version "0.59.1"}
                      metosin/reitit-dev {:mvn/version "0.8.0"}
+                     metosin/reitit-middleware {:mvn/version "0.8.0"}
                      ring/ring-mock {:mvn/version "0.4.0"}}}
   :test {:extra-paths ["test"]
          :extra-deps {ring/ring-mock {:mvn/version "0.4.0"}
