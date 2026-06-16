@@ -2,8 +2,8 @@
   (:require [cognitect.aws.client.api :as aws]
             [clojure.string :as str]))
 
-(defonce ^:private client (atom nil))
-(defonce ^:private table  (atom nil))
+(defonce client (atom nil))
+(defonce table  (atom nil))
 
 (defn- parse-endpoint [url]
   (let [[protocol remainder] (str/split url #"://")
@@ -18,44 +18,13 @@
     (reset! client (aws/client cfg))
     (reset! table table-name)))
 
-(defn- ->attr [v]
+(defn ->attr [v]
   (cond (string? v) {:S v}
         (number? v) {:N (str v)}
         :else       {:S (str v)}))
 
-(defn- <-attr [{:keys [S N]}]
+(defn <-attr [{:keys [S N]}]
   (or S (some-> N parse-long)))
 
-(defn- ->item [m] (update-vals m ->attr))
-(defn- <-item [m] (update-vals m <-attr))
-
-(defn create-item! [item]
-  (aws/invoke @client {:op      :PutItem
-                       :request {:TableName @table
-                                 :Item      (->item item)}}))
-
-(defn get-item [id]
-  (let [res (aws/invoke @client {:op      :GetItem
-                                 :request {:TableName @table
-                                           :Key       {:id {:S id}}}})]
-    (when-not (:cognitect.anomalies/category res)
-      (some-> res :Item <-item))))
-
-(defn list-items []
-  (let [res (aws/invoke @client {:op      :Scan
-                                 :request {:TableName @table}})]
-    (when-not (:cognitect.anomalies/category res)
-      (map <-item (:Items res)))))
-
-(defn delete-item! [id]
-  (aws/invoke @client {:op      :DeleteItem
-                       :request {:TableName @table
-                                 :Key       {:id {:S id}}}}))
-
-(defn create-table! []
-  (aws/invoke @client
-              {:op      :CreateTable
-               :request {:TableName            @table
-                         :AttributeDefinitions [{:AttributeName "id" :AttributeType "S"}]
-                         :KeySchema            [{:AttributeName "id" :KeyType "HASH"}]
-                         :BillingMode          "PAY_PER_REQUEST"}}))
+(defn ->item [m] (update-vals m ->attr))
+(defn <-item [m] (update-vals m <-attr))

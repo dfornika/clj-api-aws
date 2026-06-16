@@ -3,7 +3,8 @@
             [ring.mock.request :as mock]
             [jsonista.core :as json]
             [clj-api.core :refer [app]]
-            [clj-api.db :as db]))
+            [clj-api.db :as db]
+            [clj-api.items :as items]))
 
 (def ^:private json-mapper
   (json/object-mapper {:decode-key-fn keyword}))
@@ -20,7 +21,7 @@
   (db/init-db! {:table-name "items-test"
                 :endpoint   "http://localhost:8000"
                 :region     "us-east-1"})
-  (db/create-table!)
+  (items/create-table!)
   (f))
 
 (use-fixtures :once with-dynamodb)

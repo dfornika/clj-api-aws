@@ -17,6 +17,7 @@
    [jsonista.core :as json]
    [clj-api.cli :as cli]
    [clj-api.db :as db]
+   [clj-api.items :as items]
    [clj-api.middleware :as middleware])
   (:import
    [java.util Date])
@@ -103,7 +104,7 @@
 
 (defn list-items-handler [_request]
   {:status 200
-   :body {:items (or (db/list-items) [])}})
+   :body {:items (or (items/list-items) [])}})
 
 (defn create-item-handler [request]
   (let [{:keys [title content]} (:body-params request)
@@ -111,19 +112,19 @@
         now  (str (java.time.Instant/now))
         item (cond-> {:id id :title title :created-at now}
                content (assoc :content content))]
-    (db/create-item! item)
+    (items/create-item! item)
     {:status 201 :body item}))
 
 (defn get-item-handler [request]
   (let [id   (get-in request [:path-params :id])
-        item (db/get-item id)]
+        item (items/get-item id)]
     (if item
       {:status 200 :body item}
       {:status 404 :body {:error "not found"}})))
 
 (defn delete-item-handler [request]
   (let [id (get-in request [:path-params :id])]
-    (db/delete-item! id)
+    (items/delete-item! id)
     {:status 204 :body nil}))
 
 (def routes
