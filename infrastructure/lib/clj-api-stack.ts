@@ -5,6 +5,7 @@ import * as apigwv2 from 'aws-cdk-lib/aws-apigatewayv2';
 import { HttpLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 import { HttpJwtAuthorizer } from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
+import * as ssm from 'aws-cdk-lib/aws-ssm';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import { Duration } from 'aws-cdk-lib';
@@ -42,12 +43,16 @@ export class CljApiStack extends cdk.Stack {
     // Grant Lambda read/write access to the table
     itemsTable.grantReadWriteData(apiLambda);
 
-    // Cognito User Pool (no self-sign-up — invite-only, email sign-in)
-    const userPool = new cognito.UserPool(this, 'userPool', {
-      selfSignUpEnabled: false,
-      signInAliases: { email: true },
-      removalPolicy: isDev ? cdk.RemovalPolicy.DESTROY : cdk.RemovalPolicy.RETAIN,
-    });
+    // Shared Cognito User Pool — lives in the personal foundation stack,
+    // published to SSM. A per-app UserPoolClient is created here so each
+    // app has its own audience (client ID) in the JWT.
+    const userPoolId = ssm.StringParameter.valueForStringParameter(
+      this, '/personal/cognito/user-pool-id'
+    );
+    const userPoolProviderUrl = ssm.StringParameter.valueForStringParameter(
+      this, '/personal/cognito/user-pool-provider-url'
+    );
+    const userPool = cognito.UserPool.fromUserPoolId(this, 'sharedUserPool', userPoolId);
 
     // Public client — no secret required for CLI/curl use
     const userPoolClient = new cognito.UserPoolClient(this, 'userPoolClient', {
@@ -86,7 +91,7 @@ export class CljApiStack extends cdk.Stack {
 
     const lambdaIntegration = new HttpLambdaIntegration('lambdaIntegration', apiLambda);
 
-    const jwtAuthorizer = new HttpJwtAuthorizer('cognitoAuthorizer', userPool.userPoolProviderUrl, {
+    const jwtAuthorizer = new HttpJwtAuthorizer('cognitoAuthorizer', userPoolProviderUrl, {
       jwtAudience: [userPoolClient.userPoolClientId],
     });
 
@@ -110,14 +115,9 @@ export class CljApiStack extends cdk.Stack {
       description: 'The URL of the API Gateway',
     });
 
-    new cdk.CfnOutput(this, 'UserPoolId', {
-      value: userPool.userPoolId,
-      description: 'Cognito User Pool ID',
-    });
-
     new cdk.CfnOutput(this, 'UserPoolClientId', {
       value: userPoolClient.userPoolClientId,
-      description: 'Cognito User Pool Client ID',
+      description: 'Cognito User Pool Client ID (per-app)',
     });
   }
 }
