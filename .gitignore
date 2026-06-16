@@ -3,3 +3,4 @@ install
 .clj-kondo
 .lsp
 .portal
+dev_scripts/.env
