@@ -153,14 +153,15 @@
                      :responses {200 {:body [:map [:items [:vector [:map
                                                                     [:id :string]
                                                                     [:title :string]
-                                                                    [:created-at :string]]]]]}}
+                                                                    [:created-at :string]
+                                                                    [:content {:optional true} :string]]]]]}}
                      :handler #'list-items-handler}
               :post {:summary "Create item"
                      :parameters {:body [:map [:title :string] [:content {:optional true} :string]]}
-                     :responses {201 {:body [:map [:id :string] [:title :string] [:created-at :string]]}}
+                     :responses {201 {:body [:map [:id :string] [:title :string] [:created-at :string] [:content {:optional true} :string]]}}
                      :handler #'create-item-handler}}]
    ["/items/:id" {:get    {:summary "Get item by id"
-                           :responses {200 {:body [:map [:id :string] [:title :string] [:created-at :string]]}}
+                           :responses {200 {:body [:map [:id :string] [:title :string] [:created-at :string] [:content {:optional true} :string]]}}
                            :handler #'get-item-handler}
                   :delete {:summary "Delete item by id"
                            :handler #'delete-item-handler}}]])
