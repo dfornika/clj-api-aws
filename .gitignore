@@ -1,2 +1,5 @@
 linux-install.sh
 install
+.clj-kondo
+.lsp
+.portal
