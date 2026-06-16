@@ -31,4 +31,5 @@
   [handler]
   (fn [request]
     (let [response (handler request)]
-      (pprint response))))
+      (pprint response)
+      response)))

@@ -15,27 +15,26 @@
 
  
 (defn add-middleware
-  ""
   [m name]
   (swap! core/route-data update :middleware
          (fn [ms]
            (conj ms (reitit-middleware/map->Middleware {:name name :wrap m})))))
 
 (defn remove-middleware
-  ""
   [name]
   (swap! core/route-data update :middleware
          (fn [ms] (vec (filter #(not= name (:name %)) ms)))))
 
 
 (defn reset-default-middleware
-  ""
   []
   (swap! core/route-data assoc :middleware core/matched-route-middleware-stack))
 
 
 (comment
-  ;; Add/remove dev middleware
+  ;; Add/remove dev middleware.
+  ;; After add-middleware, call (reload/reload) so router and app
+  ;; are rebuilt from the updated route-data atom.
   (add-middleware dev-middleware/tap-request :dev-middleware/tap-request)
   (remove-middleware :dev-middleware/tap-request)
   
