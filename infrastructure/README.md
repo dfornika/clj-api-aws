@@ -60,8 +60,8 @@ SSM parameters must exist in the same account/region:
 
 | Parameter | Description |
 |---|---|
-| `/personal/cognito/user-pool-id` | User Pool ID from the foundation stack |
-| `/personal/cognito/user-pool-provider-url` | Provider URL (e.g. `https://cognito-idp.<region>.amazonaws.com/<pool-id>`) |
+| `/foundation/cognito/personal-user-pool-id` | User Pool ID from the foundation stack |
+| `/foundation/cognito/personal-user-pool-provider-url` | Provider URL (e.g. `https://cognito-idp.<region>.amazonaws.com/<pool-id>`) |
 
 ## Authentication
 

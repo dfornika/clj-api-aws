@@ -47,10 +47,10 @@ export class CljApiStack extends cdk.Stack {
     // published to SSM. A per-app UserPoolClient is created here so each
     // app has its own audience (client ID) in the JWT.
     const userPoolId = ssm.StringParameter.valueForStringParameter(
-      this, '/personal/cognito/user-pool-id'
+      this, '/foundation/cognito/personal-user-pool-id'
     );
     const userPoolProviderUrl = ssm.StringParameter.valueForStringParameter(
-      this, '/personal/cognito/user-pool-provider-url'
+      this, '/foundation/cognito/personal-user-pool-provider-url'
     );
     const userPool = cognito.UserPool.fromUserPoolId(this, 'sharedUserPool', userPoolId);
 
