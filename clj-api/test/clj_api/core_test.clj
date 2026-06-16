@@ -55,3 +55,12 @@
     (is (= 200 (:status response)))
     (is (= "/echo" (:uri body)))
     (is (= "get" (:request-method body)))))
+
+(deftest response-includes-generated-request-id
+  (let [response (app (mock/request :get "/health"))]
+    (is (some? (get-in response [:headers "x-request-id"])))))
+
+(deftest response-echoes-provided-request-id
+  (let [response (app (-> (mock/request :get "/health")
+                          (mock/header "x-request-id" "my-trace-id")))]
+    (is (= "my-trace-id" (get-in response [:headers "x-request-id"])))))
