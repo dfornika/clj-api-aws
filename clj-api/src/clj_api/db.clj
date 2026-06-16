@@ -6,13 +6,14 @@
 (defonce table  (atom nil))
 
 (defn- parse-endpoint [url]
-  (let [[protocol remainder] (str/split url #"://")
-        [host port]          (str/split remainder #":")]
-    {:protocol (keyword protocol)
-     :hostname host
-     :port     (Integer/parseInt port)}))
+  (let [uri (java.net.URI. url)]
+    {:protocol (keyword (.getScheme uri))
+     :hostname (.getHost uri)
+     :port     (.getPort uri)}))
 
 (defn init-db! [{:keys [table-name endpoint region]}]
+  (when (str/blank? table-name)
+    (throw (IllegalArgumentException. "table-name must not be blank")))
   (let [cfg (cond-> {:api :dynamodb}
               region   (assoc :region region)
               endpoint (assoc :endpoint-override (parse-endpoint endpoint)))]

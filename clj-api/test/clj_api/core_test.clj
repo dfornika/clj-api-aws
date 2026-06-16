@@ -2,9 +2,9 @@
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [ring.mock.request :as mock]
             [jsonista.core :as json]
+            [cognitect.aws.client.api :as aws]
             [clj-api.core :refer [app]]
-            [clj-api.db :as db]
-            [clj-api.items :as items]))
+            [clj-api.db :as db]))
 
 (def ^:private json-mapper
   (json/object-mapper {:decode-key-fn keyword}))
@@ -17,11 +17,32 @@
            (mock/content-type "application/json")
            (mock/body (json/write-value-as-string body)))))
 
+(defn- create-test-table! []
+  (aws/invoke @db/client
+              {:op      :CreateTable
+               :request {:TableName            @db/table
+                         :AttributeDefinitions [{:AttributeName "id" :AttributeType "S"}]
+                         :KeySchema            [{:AttributeName "id" :KeyType "HASH"}]
+                         :BillingMode          "PAY_PER_REQUEST"}}))
+
+(defn- wait-for-table-active! []
+  (loop [n 20]
+    (let [status (-> (aws/invoke @db/client
+                                 {:op      :DescribeTable
+                                  :request {:TableName @db/table}})
+                     (get-in [:Table :TableStatus]))]
+      (cond
+        (= status "ACTIVE") nil
+        (zero? n) (throw (ex-info "Timed out waiting for DynamoDB table to become ACTIVE"
+                                  {:table @db/table}))
+        :else (do (Thread/sleep 250) (recur (dec n)))))))
+
 (defn- with-dynamodb [f]
   (db/init-db! {:table-name "items-test"
                 :endpoint   "http://localhost:8000"
                 :region     "us-east-1"})
-  (items/create-table!)
+  (create-test-table!)
+  (wait-for-table-active!)
   (f))
 
 (use-fixtures :once with-dynamodb)

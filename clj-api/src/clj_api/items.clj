@@ -2,33 +2,33 @@
   (:require [cognitect.aws.client.api :as aws]
             [clj-api.db :as db]))
 
+(defn- check-anomaly! [op res]
+  (when (:cognitect.anomalies/category res)
+    (throw (ex-info (str "DynamoDB " (name op) " failed")
+                    {:op op :anomaly res})))
+  res)
+
 (defn create-item! [item]
-  (aws/invoke @db/client {:op      :PutItem
-                          :request {:TableName @db/table
-                                    :Item      (db/->item item)}}))
+  (check-anomaly! :PutItem
+                  (aws/invoke @db/client {:op      :PutItem
+                                          :request {:TableName @db/table
+                                                    :Item      (db/->item item)}})))
 
 (defn get-item [id]
-  (let [res (aws/invoke @db/client {:op      :GetItem
-                                    :request {:TableName @db/table
-                                              :Key       {:id {:S id}}}})]
-    (when-not (:cognitect.anomalies/category res)
-      (some-> res :Item db/<-item))))
+  (let [res (check-anomaly! :GetItem
+                            (aws/invoke @db/client {:op      :GetItem
+                                                    :request {:TableName @db/table
+                                                              :Key       {:id {:S id}}}}))]
+    (some-> res :Item db/<-item)))
 
 (defn list-items []
-  (let [res (aws/invoke @db/client {:op      :Scan
-                                    :request {:TableName @db/table}})]
-    (when-not (:cognitect.anomalies/category res)
-      (map db/<-item (:Items res)))))
+  (let [res (check-anomaly! :Scan
+                            (aws/invoke @db/client {:op      :Scan
+                                                    :request {:TableName @db/table}}))]
+    (into [] (map db/<-item) (:Items res))))
 
 (defn delete-item! [id]
-  (aws/invoke @db/client {:op      :DeleteItem
-                          :request {:TableName @db/table
-                                    :Key       {:id {:S id}}}}))
-
-(defn create-table! []
-  (aws/invoke @db/client
-              {:op      :CreateTable
-               :request {:TableName            @db/table
-                         :AttributeDefinitions [{:AttributeName "id" :AttributeType "S"}]
-                         :KeySchema            [{:AttributeName "id" :KeyType "HASH"}]
-                         :BillingMode          "PAY_PER_REQUEST"}}))
+  (check-anomaly! :DeleteItem
+                  (aws/invoke @db/client {:op      :DeleteItem
+                                          :request {:TableName @db/table
+                                                    :Key       {:id {:S id}}}})))

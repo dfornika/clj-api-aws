@@ -54,5 +54,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-clojure-
 
+      - name: Wait for DynamoDB Local
+        run: timeout 30 bash -c 'until curl -s -o /dev/null http://localhost:8000; do sleep 1; done'
+
       - name: Run tests
         run: clojure -X:test

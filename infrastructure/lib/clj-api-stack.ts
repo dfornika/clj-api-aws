@@ -12,12 +12,15 @@ export class CljApiStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
+    // Pass `-c dev=true` to allow stack destruction to delete the table.
+    // Defaults to RETAIN so data survives accidental `cdk destroy`.
+    const isDev = this.node.tryGetContext('dev') === 'true';
+
     // DynamoDB Table (PAY_PER_REQUEST = no idle charges, ideal for hobby projects)
     const itemsTable = new dynamodb.TableV2(this, 'itemsTable', {
       partitionKey: { name: 'id', type: dynamodb.AttributeType.STRING },
       billing: dynamodb.Billing.onDemand(),
-      // DESTROY is convenient for a dev template — change to RETAIN for production
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      removalPolicy: isDev ? cdk.RemovalPolicy.DESTROY : cdk.RemovalPolicy.RETAIN,
     });
 
     // Lambda Function
