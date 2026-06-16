@@ -3,7 +3,8 @@
             :host #profile {:dev     "localhost"
                             :default "0.0.0.0"}}
  :dynamodb {:table-name #profile {:dev     "items-dev"
-                                  :default "items"}
+                                  :default #env DYNAMODB_TABLE_NAME}
             :endpoint   #profile {:dev     "http://localhost:8000"
                                   :default nil}
-            :region     "us-east-1"}}
+            :region     #profile {:dev     "us-east-1"
+                                  :default nil}}}

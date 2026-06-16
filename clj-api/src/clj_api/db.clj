@@ -13,7 +13,8 @@
      :port     (Integer/parseInt port)}))
 
 (defn init-db! [{:keys [table-name endpoint region]}]
-  (let [cfg (cond-> {:api :dynamodb :region region}
+  (let [cfg (cond-> {:api :dynamodb}
+              region   (assoc :region region)
               endpoint (assoc :endpoint-override (parse-endpoint endpoint)))]
     (reset! client (aws/client cfg))
     (reset! table table-name)))
